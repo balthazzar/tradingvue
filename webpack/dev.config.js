@@ -2,7 +2,7 @@ const VueLoaderPlugin = require('vue-loader/lib/plugin')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 
 module.exports = {
-    entry: './src/main.js',
+    entry: ['./src/main.js', 'webpack-dev-server/client?http://0.0.0.0:80'],
     module: {
         rules: [{
                 test: /\.vue$/,
