@@ -25,7 +25,9 @@
         "webpack-dev-server": "^3.11.0"
     },
     "dependencies": {
+        "axios": "^1.2.0",
         "trading-vue-js": "^1.0.0",
-        "vue": "^2.6.12"
+        "vue": "^2.6.12",
+        "vue-grid-layout": "^2.4.0"
     }
 }
