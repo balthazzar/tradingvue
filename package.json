@@ -27,6 +27,7 @@
         "axios": "^1.2.0",
         "trading-vue-js": "^1.0.0",
         "vue": "^2.6.12",
-        "vue-grid-layout": "^2.4.0"
+        "vue-grid-layout": "^2.4.0",
+        "vuejs-paginate": "^2.1.0"
     }
 }
