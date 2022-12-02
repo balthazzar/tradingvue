@@ -24,7 +24,7 @@
                 :key="item.i">
             <trading-vue
                 :data="charts[item.symbol]"
-                :title-txt="item.symbol"
+                :title-txt="`${item.symbol} ${timeframe}`"
                 :width="470"
                 :height="240"
                 :color-back="colors.colorBack"
@@ -37,7 +37,7 @@
     <paginate
         v-model="page"
         :page-count="pageCount"
-        :click-handler="clickCallback"
+        :click-handler="pageClickHandler"
         :container-class="'pagination'"
         :prev-text="'Prev'"
         :next-text="'Next'">
@@ -81,7 +81,7 @@ export default {
                     chart: {
                         type: 'Candles',
                         data: [],
-                        tf: '1m',
+                        tf: this.timeframe,
                         settings: {
                             upper: 70,
                             lower: 30
@@ -93,7 +93,7 @@ export default {
             }, {});
         },
         fillCharts: async function(symbols) {
-            const klineRequests = symbols.map(symbol => axios.get(`https://api1.binance.com/api/v3/uiKlines?symbol=${symbol}&interval=1m`));
+            const klineRequests = symbols.map(symbol => axios.get(`https://api1.binance.com/api/v3/uiKlines?symbol=${symbol}&interval=${this.timeframe}`));
             const klineResponses = await Promise.all(klineRequests);
             
             symbols.forEach((symbol, i) => {
@@ -127,7 +127,7 @@ export default {
     },
     watch: {
         page: async function(page) {
-            this.sendMessage(UNSUBSCRIBE_METHOD, Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@kline_1m`));
+            this.sendMessage(UNSUBSCRIBE_METHOD, Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@kline_${this.timeframe}`));
             
             const symbols = this.paginateSymbols();
 
@@ -182,7 +182,7 @@ export default {
             //const symbols = Object.keys(this.charts);
 
             this.fillCharts(symbols);
-            this.sendMessage(SUBSCRIBE_METHOD, symbols.map(symbol => `${symbol.toLowerCase()}@kline_1m`));
+            this.sendMessage(SUBSCRIBE_METHOD, symbols.map(symbol => `${symbol.toLowerCase()}@kline_${this.timeframe}`));
         }
     },
     data() {
@@ -198,7 +198,8 @@ export default {
             symbols: null,
             page: 1,
             pageCount: 1,
-            itemOnPage: 20
+            itemOnPage: 20,
+            timeframe: '1d'
         }
     }
 }
