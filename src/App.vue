@@ -44,7 +44,7 @@
                 :key="item.i">
             <trading-vue
                 :data="charts[item.symbol]"
-                :title-txt="`${item.symbol} ${timeframe} ${allSymbols[item.symbol].price24Change || 0}% ${allSymbols[item.symbol].marketcap || 0}$`"
+                :title-txt="`${item.symbol.replace('USDT', '')} ${timeframe} ${allSymbols[item.symbol].price24Change}% ${allSymbols[item.symbol].marketcap}$`"
                 :width="470"
                 :height="240"
                 :color-back="colors.colorBack"
@@ -225,7 +225,12 @@ export default {
             .filter(symbolItem => SYMBOL_FILTER.includes(symbolItem.quoteAsset))
             .map(symbolItem => symbolItem.symbol)
             .reduce((acc, symbol) => {
-                acc[symbol] = { name: symbol };
+                acc[symbol] = {
+                    name: symbol,
+                    marketcap: 0,
+                    price24Change: 0
+                };
+                
                 return acc;
             }, {});
         
@@ -253,7 +258,7 @@ export default {
                //      console.log(socketData.s, this.charts)
                     const lastCandle = this.charts[socketData.s].chart.data.pop();
                     
-                    if (lastCandle[0] !== socketData.k.t) {
+                    if (lastCandle && lastCandle[0] !== socketData.k.t) {
                         this.charts[socketData.s].chart.data.push(lastCandle);
                     }
 
