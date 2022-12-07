@@ -10,6 +10,31 @@
         :next-text="'Next'">
     </paginate>
 
+    <div style="display: flex">
+        <v-select
+            style="width: 200px;"
+            @input="selectFieldHandler"
+            :options="sortableFields"
+            :value="sortParams.field">
+        </v-select>
+
+        <v-select
+            style="width: 150px;"
+            @input="selectDirectionHandler"
+            label="title"
+            :options="[{ title: 'Asc', value: true}, { title: 'Desc', value: false }]"
+            :reduce="order => order.value"
+            v-model="sortParams.direction">
+        </v-select>
+
+        <v-select
+            style="width: 110px;"
+            @input="selectTimeframeHandler"
+            :options="['1m', '5m', '15m', '1h', '4h', '1d']"
+            :value="timeframe">
+        </v-select>
+    </div>
+
     <grid-layout v-if="charts"
                 :layout.sync="layout"
                 :is-draggable="false"
@@ -48,10 +73,12 @@
 </template>
 
 <script>
-import TradingVue from 'trading-vue-js'
-import { GridLayout, GridItem } from "vue-grid-layout"
+import TradingVue from 'trading-vue-js';
+import { GridLayout, GridItem } from "vue-grid-layout";
 
 import axios from 'axios';
+
+import 'vue-select/dist/vue-select.css';
 
 const SUBSCRIBE_METHOD = 'SUBSCRIBE';
 const UNSUBSCRIBE_METHOD = 'UNSUBSCRIBE';
@@ -65,7 +92,7 @@ export default {
         pageClickHandler(page) {
             this.page = page;
         },
-        setLayout(symbols) {
+        initLayout(symbols) {
             this.layout = symbols.map((symbol, i) => ({
                 x: i % 2 ? 2 : 1,
                 y: i % 2 ? i - 1 : i,
@@ -101,16 +128,32 @@ export default {
                     frame.slice(0, 6).map(frameField => +frameField));
             });
         },
-        sortSymbols(symbol1, symbol2) {
-            if (symbol1.baseAsset > symbol2.baseAsset) {
-                return 1;
+        sort({ field, direction }, elem1, elem2) {
+            if (field && (elem1[field] > elem2[field]) || (elem1 > elem2)) {
+                return direction ? 1 : -1;
             }
             
-            if (symbol1.baseAsset < symbol2.baseAsset) {
-                return -1;
+            if (field && (elem1[field] < elem2[field]) || (elem1 < elem2)) {
+                return direction ? -1 : 1;
             }
 
             return 0;
+        },
+        selectFieldHandler(field) {
+            this.sortParams = { ...this.sortParams, field };
+        },
+        selectDirectionHandler(direction) {
+            this.sortParams = { ...this.sortParams, direction };
+        },
+        selectTimeframeHandler(timeframe) {
+            this.sendMessage(UNSUBSCRIBE_METHOD, Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@kline_${this.timeframe}`));
+
+            this.timeframe = timeframe;
+
+            this.initCharts(Object.keys(this.charts));
+            this.fillCharts(Object.keys(this.charts));
+
+            this.sendMessage(SUBSCRIBE_METHOD, Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@kline_${timeframe}`));
         },
         sendMessage(method, params) {
             const message = {
@@ -122,66 +165,132 @@ export default {
             this.connection.send(JSON.stringify(message));
         },
         paginateSymbols() {
-            return this.allSymbols.slice((this.page - 1) * this.itemOnPage, (this.page - 1) * this.itemOnPage + this.itemOnPage);
+            return Object.keys(this.allSymbols).slice((this.page - 1) * this.itemOnPage, (this.page - 1) * this.itemOnPage + this.itemOnPage);
+        },
+        applyFilters() {
+                // this.sendMessage(UNSUBSCRIBE_METHOD, Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@ticker`));
+
+            const sortedSymbols = Object.values(this.allSymbols).sort(this.sort.bind(null, this.sortParams)).map(symbol => symbol.name);
+            const symbols = sortedSymbols.slice((this.page - 1) * this.itemOnPage, (this.page - 1) * this.itemOnPage + this.itemOnPage);
+            
+            if (!this.layout.map(item => item.symbol).every((symbol, i) => symbol === symbols[i])) {
+                this.sendMessage(UNSUBSCRIBE_METHOD, Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@kline_${this.timeframe}`));
+
+                this.initLayout(symbols);
+                this.initCharts(symbols);
+                this.fillCharts(symbols);
+
+                this.sendMessage(SUBSCRIBE_METHOD, symbols.map(symbol => `${symbol.toLowerCase()}@kline_${this.timeframe}`));
+            }
         }
     },
     watch: {
-        page: async function(page) {
-            this.sendMessage(UNSUBSCRIBE_METHOD, Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@kline_${this.timeframe}`));
-            
-            const symbols = this.paginateSymbols();
+        page() {
+            this.applyFilters();
+        },
+        sortParams: async function() {
+            clearInterval(this.interval);
 
-            this.setLayout(symbols);
-            this.initCharts(symbols);
-            this.fillCharts(symbols);
+            const applySort = async () => {
+                switch (this.sortParams.field) {
+                    case 'price24Change':
+                        const changeResponse = await axios.get(`https://api1.binance.com/api/v3/ticker/24hr?symbols=${JSON.stringify(Object.keys(this.allSymbols))}`);
+                        
+                        changeResponse.data.forEach(item => {
+                            this.allSymbols[item.symbol]['price24Change'] = item.priceChangePercent;
+                        });
 
-            this.sendMessage(SUBSCRIBE_METHOD, symbols.map(symbol => `${symbol.toLowerCase()}@kline_1m`));
+                        break;
+                    case 'marketcap':
+                        // const apiAnswer = await axios.get(`https://api1.binance.com/api/v3/ticker/24hr?symbols=${JSON.stringify(Object.keys(this.allSymbols))}`);
+                        const apiAnswer = await axios.get('https://www.binance.com/exchange-api/v2/public/asset-service/product/get-products');
+                        
+                        apiAnswer.data.data.forEach(item => {
+                            if (this.allSymbols[item.s]) {
+                                this.allSymbols[item.s]['marketcap'] = item.cs * item.c;
+                            }
+                        });
+
+                        break;
+                }
+                
+                this.applyFilters();
+            };
+
+            applySort();
+
+            this.interval = setInterval(applySort, 30 * 1000);
+            // this.sendMessage(SUBSCRIBE_METHOD, symbols.map(symbol => `${symbol.toLowerCase()}@ticker`));
+        },
+        timeframe() {
+            this.applyFilters();
         }
     },
     mounted: async function() {
         const exchangeInfoResponse = await axios.get('https://api1.binance.com/api/v3/exchangeInfo');
         const allSymbols = exchangeInfoResponse.data.symbols
-            .filter(symbolItem => SYMBOL_FILTER.includes(symbolItem.quoteAsset)) // .sort(this.sortSymbols)
-            .map(symbolItem => symbolItem.symbol);
+            .filter(symbolItem => SYMBOL_FILTER.includes(symbolItem.quoteAsset))
+            .map(symbolItem => symbolItem.symbol)
+            .reduce((acc, symbol) => {
+                acc[symbol] = { name: symbol };
+                return acc;
+            }, {});
         
         this.allSymbols = allSymbols;
-        this.pageCount = Math.ceil(allSymbols.length / this.itemOnPage);
+        this.pageCount = Math.ceil(Object.keys(allSymbols).length / this.itemOnPage);
         
-        const symbols = this.paginateSymbols();
+        const sortedSymbols = Object.values(this.allSymbols).sort(this.sort.bind(null, this.sortParams)).map(symbol => symbol.name);
+        const symbols = sortedSymbols.slice((this.page - 1) * this.itemOnPage, (this.page - 1) * this.itemOnPage + this.itemOnPage);
+        
+        // const symbols = this.paginateSymbols();
 
-        this.setLayout(symbols);
+        this.initLayout(symbols);
+        // this.layout = this.layout.sort(this.sort.bind(null, { field: 'symbol', direction: this.sortParams.isAsc }));
         this.initCharts(symbols);
+        this.fillCharts(symbols);
 
-        this.connection = new WebSocket("wss://stream.binance.com:9443/ws")
+        this.connection = new WebSocket("wss://stream.binance.com:9443/ws");
 
         this.connection.onmessage = (event) => {
             const socketData = JSON.parse(event.data);
+            // console.log(socketData);
 
-            if (socketData.e && socketData.e === 'kline') {
-                const candles = this.charts[socketData.s].chart.data;
-                const lastCandle = candles[candles.length - 1];
-                
-                if (lastCandle[0] === socketData.k.t) {
-                    this.charts[socketData.s].chart.data.pop();
-                }
+            switch (socketData.e) {
+                case 'kline':
+               //      console.log(socketData.s, this.charts)
+                    const lastCandle = this.charts[socketData.s].chart.data.slice(0, -1);
+                    
+                    if (lastCandle[0] === socketData.k.t) {
+                        this.charts[socketData.s].chart.data.splice(0, -1);
+                    }
 
-                this.charts[socketData.s].chart.data.push([
-                    +socketData.k.t,
-                    +socketData.k.o,
-                    +socketData.k.h,
-                    +socketData.k.l,
-                    +socketData.k.c,
-                    +socketData.k.v
-                ]);
+                    this.charts[socketData.s].chart.data.push([
+                        +socketData.k.t,
+                        +socketData.k.o,
+                        +socketData.k.h,
+                        +socketData.k.l,
+                        +socketData.k.c,
+                        +socketData.k.v
+                    ]);
+                    break;
+/*                 case '24hrTicker':
+                    if (!this.sortParams.field !== 'price24hChange') {
+                        this.sendMessage(UNSUBSCRIBE_METHOD, [`${socketData.s.toLowerCase()}@ticker`]);
+                        break;
+                    }
+
+                    this.allSymbols[socketData.s][this.sortParams.field] = socketData.P;
+                    this.allSymbols = this.allSymbols.sort(this.sort.bind(null, { direction: this.sortParams.direction }));
+                    break;
+ */                
+                default:
+                    console.log(`Unknown data type: ${socketData.e}`);
             }
         }
 
-        this.connection.onopen = async () => {
+        this.connection.onopen = () => {
             console.log("Successfully connected to the Binance websocket server")
 
-            //const symbols = Object.keys(this.charts);
-
-            this.fillCharts(symbols);
             this.sendMessage(SUBSCRIBE_METHOD, symbols.map(symbol => `${symbol.toLowerCase()}@kline_${this.timeframe}`));
         }
     },
@@ -199,8 +308,36 @@ export default {
             page: 1,
             pageCount: 1,
             itemOnPage: 20,
-            timeframe: '1d'
+            timeframe: '1d',
+            sortParams: {
+                field: 'name',
+                direction: true
+            },
+            sortableFields: ['name', 'price24Change', 'marketcap']
         }
     }
 }
 </script>
+<style>
+body {
+  font-family: "Source Sans Pro", "Helvetica Neue", Arial, sans-serif;
+  text-rendering: optimizelegibility;
+  -moz-osx-font-smoothing: grayscale;
+  -moz-text-size-adjust: none;
+}
+
+h1,
+.muted {
+  color: #2c3e5099;
+}
+
+h1 {
+  font-size: 26px;
+  font-weight: 600;
+}
+
+#app {
+  max-width: 30em;
+  margin: 1em auto;
+}
+</style>
