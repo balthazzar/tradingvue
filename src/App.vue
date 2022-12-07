@@ -251,10 +251,10 @@ export default {
             switch (socketData.e) {
                 case 'kline':
                //      console.log(socketData.s, this.charts)
-                    const lastCandle = this.charts[socketData.s].chart.data.slice(0, -1);
+                    const lastCandle = this.charts[socketData.s].chart.data.pop();
                     
-                    if (lastCandle[0] === socketData.k.t) {
-                        this.charts[socketData.s].chart.data.splice(0, -1);
+                    if (lastCandle[0] !== socketData.k.t) {
+                        this.charts[socketData.s].chart.data.push(lastCandle);
                     }
 
                     this.charts[socketData.s].chart.data.push([
