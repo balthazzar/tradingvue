@@ -221,21 +221,39 @@ export default {
     },
     mounted: async function() {
         const exchangeInfoResponse = await axios.get('https://api1.binance.com/api/v3/exchangeInfo');
+        
         const allSymbols = exchangeInfoResponse.data.symbols
-            .filter(symbolItem => SYMBOL_FILTER.includes(symbolItem.quoteAsset))
-            .map(symbolItem => symbolItem.symbol)
-            .reduce((acc, symbol) => {
-                acc[symbol] = {
-                    name: symbol,
+            .filter(symbolItem => SYMBOL_FILTER.includes(symbolItem.quoteAsset) && symbolItem.permissions.includes('SPOT'))
+            .reduce((acc, symbolItem) => {
+                console.log(symbolItem)
+                acc[symbolItem.symbol] = {
+                    name: symbolItem.symbol,
                     marketcap: 0,
                     price24Change: 0
                 };
-                
+
                 return acc;
             }, {});
         
         this.allSymbols = allSymbols;
         this.pageCount = Math.ceil(Object.keys(allSymbols).length / this.itemOnPage);
+
+        Promise.all([
+            axios.get(`https://api1.binance.com/api/v3/ticker/24hr?symbols=${JSON.stringify(Object.keys(this.allSymbols))}`),
+            axios.get('https://www.binance.com/exchange-api/v2/public/asset-service/product/get-products')
+        ]).then(responses => {
+            responses[0].data.forEach(item => {
+                if (this.allSymbols[item.symbol]) {
+                    this.allSymbols[item.symbol]['price24Change'] = +item.priceChangePercent;
+                }
+            });
+
+            responses[1].data.data.forEach(item => {
+                if (this.allSymbols[item.s]) {
+                    this.allSymbols[item.s]['marketcap'] = item.cs * item.c;
+                }
+            });
+        });
         
         const sortedSymbols = Object.values(this.allSymbols).sort(this.sort.bind(null, this.sortParams)).map(symbol => symbol.name);
         const symbols = sortedSymbols.slice((this.page - 1) * this.itemOnPage, (this.page - 1) * this.itemOnPage + this.itemOnPage);
