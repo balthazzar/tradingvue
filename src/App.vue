@@ -12,23 +12,18 @@
 
     <div style="display: flex">
         <v-select
-            style="width: 200px;"
             @input="selectFieldHandler"
             :options="sortableFields"
             :value="sortParams.field">
         </v-select>
 
         <v-select
-            style="width: 150px;"
             @input="selectDirectionHandler"
-            label="title"
-            :options="[{ title: 'Asc', value: true}, { title: 'Desc', value: false }]"
-            :reduce="order => order.value"
-            v-model="sortParams.direction">
+            :options="['Asc', 'Desc']"
+            :value="sortParams.direction ? 'Asc' : 'Desc'">
         </v-select>
 
         <v-select
-            style="width: 110px;"
             @input="selectTimeframeHandler"
             :options="['1m', '5m', '15m', '1h', '4h', '1d']"
             :value="timeframe">
@@ -77,8 +72,6 @@ import TradingVue from 'trading-vue-js';
 import { GridLayout, GridItem } from "vue-grid-layout";
 
 import axios from 'axios';
-
-import 'vue-select/dist/vue-select.css';
 
 const SUBSCRIBE_METHOD = 'SUBSCRIBE';
 const UNSUBSCRIBE_METHOD = 'UNSUBSCRIBE';
@@ -143,7 +136,7 @@ export default {
             this.sortParams = { ...this.sortParams, field };
         },
         selectDirectionHandler(direction) {
-            this.sortParams = { ...this.sortParams, direction };
+            this.sortParams = { ...this.sortParams, direction: direction === 'Asc' };
         },
         selectTimeframeHandler(timeframe) {
             this.sendMessage(UNSUBSCRIBE_METHOD, Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@kline_${this.timeframe}`));

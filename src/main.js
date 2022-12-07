@@ -1,7 +1,7 @@
 import Vue from 'vue';
 
 import Paginate from 'vuejs-paginate';
-import vSelect from 'vue-select';
+import vSelect from 'vue-multiselect';
 
 import App from './App.vue';
 
