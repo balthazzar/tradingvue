@@ -44,7 +44,7 @@
                 :key="item.i">
             <trading-vue
                 :data="charts[item.symbol]"
-                :title-txt="`${item.symbol} ${timeframe}`"
+                :title-txt="`${item.symbol} ${timeframe} ${allSymbols[item.symbol].price24Change || 0}% ${allSymbols[item.symbol].marketcap || 0}$`"
                 :width="470"
                 :height="240"
                 :color-back="colors.colorBack"
@@ -190,7 +190,7 @@ export default {
                         const changeResponse = await axios.get(`https://api1.binance.com/api/v3/ticker/24hr?symbols=${JSON.stringify(Object.keys(this.allSymbols))}`);
                         
                         changeResponse.data.forEach(item => {
-                            this.allSymbols[item.symbol]['price24Change'] = item.priceChangePercent;
+                            this.allSymbols[item.symbol]['price24Change'] = +item.priceChangePercent;
                         });
 
                         break;
