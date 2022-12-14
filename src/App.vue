@@ -50,7 +50,7 @@
                 :key="item.i">
             <trading-vue
                 :data="charts[item.symbol]"
-                :title-txt="`${item.symbol.replace('USDT', '')} ${timeframe} ${allSymbols[item.symbol].price24Change}% ${allSymbols[item.symbol].marketcap}$`"
+                :title-txt="`${item.symbol.replace('USDT', '')} ${timeframe} ${allSymbols[item.symbol] ? allSymbols[item.symbol].price24Change : 0}% ${allSymbols[item.symbol] ? allSymbols[item.symbol].marketcap : 0}$`"
                 :width="470"
                 :height="240"
                 :color-back="colors.colorBack"
@@ -119,7 +119,7 @@ export default {
             }, {});
         },
         fillCharts: async function(symbols) {
-            const klineRequests = symbols.map(symbol => axios.get(`https://api1.binance.com/api/v3/uiKlines?symbol=${symbol}&interval=${this.timeframe}`));
+            const klineRequests = symbols.map(symbol => axios.get(`https://data.binance.com/api/v3/uiKlines?symbol=${symbol}&interval=${this.timeframe}`));
             const klineResponses = await Promise.all(klineRequests);
             
             symbols.forEach((symbol, i) => {
@@ -154,7 +154,21 @@ export default {
 
             this.sendMessage(SUBSCRIBE_METHOD, [...Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@kline_${timeframe}`), ...Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@aggTrade`)]);
         },
-        selectQuoteHandler(quoteAsset) {
+        selectQuoteHandler: async function(quoteAsset) {
+            const exchangeInfoResponse = await axios.get('https://data.binance.com/api/v3/exchangeInfo');
+            const allSymbols = exchangeInfoResponse.data.symbols
+            .filter(symbolItem => [quoteAsset].includes(symbolItem.quoteAsset) && symbolItem.permissions.includes('SPOT'))
+            .reduce((acc, symbolItem) => {
+                // console.log(symbolItem)
+                acc[symbolItem.symbol] = {
+                    name: symbolItem.symbol,
+                    marketcap: 0,
+                    price24Change: 0
+                };
+
+                return acc;
+            }, {});
+
             this.quoteAsset = quoteAsset;
 
             this.sendMessage(UNSUBSCRIBE_METHOD, [...Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@kline_${this.timeframe}`), ...Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@aggTrade`)]);
@@ -162,11 +176,13 @@ export default {
             console.log(this.fullSymbolsInfo[quoteAsset])
             const symbols = this.fullSymbolsInfo[quoteAsset].map(symbol => `${symbol.baseAsset}${quoteAsset}`).slice((this.page - 1) * this.itemOnPage, (this.page - 1) * this.itemOnPage + this.itemOnPage);
             console.log(symbols)
+            this.allSymbols = allSymbols;
             this.initLayout(symbols);
             this.initCharts(symbols);
             this.fillCharts(symbols);
 
             this.sendMessage(SUBSCRIBE_METHOD, [...symbols.map(symbol => `${symbol.toLowerCase()}@kline_${this.timeframe}`), ...symbols.map(symbol => `${symbol.toLowerCase()}@aggTrade`)]);
+            this.applyFilters();
         },
         sendMessage(method, params) {
             const message = {
@@ -207,7 +223,7 @@ export default {
             const applySort = async () => {
                 switch (this.sortParams.field) {
                     case 'price24Change':
-                        const changeResponse = await axios.get(`https://api1.binance.com/api/v3/ticker/24hr?symbols=${JSON.stringify(Object.keys(this.allSymbols))}`);
+                        const changeResponse = await axios.get(`https://data.binance.com/api/v3/ticker/24hr?symbols=${JSON.stringify(Object.keys(this.allSymbols))}`);
                         
                         changeResponse.data.forEach(item => {
                             this.allSymbols[item.symbol]['price24Change'] = +item.priceChangePercent;
@@ -308,22 +324,24 @@ export default {
                //      console.log(socketData.s, this.charts)
                     let lastCandle = this.charts[socketData.s].chart.data.pop();
 
-                    
-                    if (lastCandle[0] !== socketData.k.t) {
-                        this.charts[socketData.s].chart.data.push(lastCandle);
-                        this.charts[socketData.s].chart.data.push([
-                            +socketData.k.t,
-                            +socketData.k.o,
-                            +socketData.k.h,
-                            +socketData.k.l,
-                            +socketData.k.c,
-                            +socketData.k.v
-                        ]);
-                    } else {
-                        lastCandle[2] = +socketData.k.h;
-                        lastCandle[3] = +socketData.k.l;
-                        lastCandle[5] = +socketData.k.v;
-                        this.charts[socketData.s].chart.data.push(lastCandle);
+
+                    if (lastCandle) {
+                        if (lastCandle[0] !== socketData.k.t) {
+                            this.charts[socketData.s].chart.data.push(lastCandle);
+                            this.charts[socketData.s].chart.data.push([
+                                +socketData.k.t,
+                                +socketData.k.o,
+                                +socketData.k.h,
+                                +socketData.k.l,
+                                +socketData.k.c,
+                                +socketData.k.v
+                            ]);
+                        } else {
+                            lastCandle[2] = +socketData.k.h;
+                            lastCandle[3] = +socketData.k.l;
+                            lastCandle[5] = +socketData.k.v;
+                            this.charts[socketData.s].chart.data.push(lastCandle);
+                        }
                     }
 
                     break;
