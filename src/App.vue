@@ -28,6 +28,12 @@
             :options="['1m', '5m', '15m', '1h', '4h', '1d']"
             :value="timeframe">
         </v-select>
+
+        <v-select
+            @input="selectQuoteHandler"
+            :options="Object.keys(this.fullSymbolsInfo)"
+            :value="quoteAsset">
+        </v-select>
     </div>
 
     <grid-layout v-if="charts"
@@ -139,14 +145,28 @@ export default {
             this.sortParams = { ...this.sortParams, direction: direction === 'Asc' };
         },
         selectTimeframeHandler(timeframe) {
-            this.sendMessage(UNSUBSCRIBE_METHOD, Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@kline_${this.timeframe}`));
+            this.sendMessage(UNSUBSCRIBE_METHOD, [...Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@kline_${this.timeframe}`), ...Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@aggTrade`)]);
 
             this.timeframe = timeframe;
 
             this.initCharts(Object.keys(this.charts));
             this.fillCharts(Object.keys(this.charts));
 
-            this.sendMessage(SUBSCRIBE_METHOD, Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@kline_${timeframe}`));
+            this.sendMessage(SUBSCRIBE_METHOD, [...Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@kline_${timeframe}`), ...Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@aggTrade`)]);
+        },
+        selectQuoteHandler(quoteAsset) {
+            this.quoteAsset = quoteAsset;
+
+            this.sendMessage(UNSUBSCRIBE_METHOD, [...Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@kline_${this.timeframe}`), ...Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@aggTrade`)]);
+
+            console.log(this.fullSymbolsInfo[quoteAsset])
+            const symbols = this.fullSymbolsInfo[quoteAsset].map(symbol => `${symbol.baseAsset}${quoteAsset}`).slice((this.page - 1) * this.itemOnPage, (this.page - 1) * this.itemOnPage + this.itemOnPage);
+            console.log(symbols)
+            this.initLayout(symbols);
+            this.initCharts(symbols);
+            this.fillCharts(symbols);
+
+            this.sendMessage(SUBSCRIBE_METHOD, [...symbols.map(symbol => `${symbol.toLowerCase()}@kline_${this.timeframe}`), ...symbols.map(symbol => `${symbol.toLowerCase()}@aggTrade`)]);
         },
         sendMessage(method, params) {
             const message = {
@@ -167,13 +187,13 @@ export default {
             const symbols = sortedSymbols.slice((this.page - 1) * this.itemOnPage, (this.page - 1) * this.itemOnPage + this.itemOnPage);
             
             if (!this.layout.map(item => item.symbol).every((symbol, i) => symbol === symbols[i])) {
-                this.sendMessage(UNSUBSCRIBE_METHOD, Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@kline_${this.timeframe}`));
+                this.sendMessage(UNSUBSCRIBE_METHOD, [...Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@kline_${this.timeframe}`), ...Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@aggTrade`)]);
 
                 this.initLayout(symbols);
                 this.initCharts(symbols);
                 this.fillCharts(symbols);
 
-                this.sendMessage(SUBSCRIBE_METHOD, symbols.map(symbol => `${symbol.toLowerCase()}@kline_${this.timeframe}`));
+                this.sendMessage(SUBSCRIBE_METHOD, [...symbols.map(symbol => `${symbol.toLowerCase()}@kline_${this.timeframe}`), ...symbols.map(symbol => `${symbol.toLowerCase()}@aggTrade`)]);
             }
         }
     },
@@ -220,12 +240,24 @@ export default {
         }
     },
     mounted: async function() {
-        const exchangeInfoResponse = await axios.get('https://api1.binance.com/api/v3/exchangeInfo');
+        const exchangeInfoResponse = await axios.get('https://data.binance.com/api/v3/exchangeInfo');
         
+        const fullSymbolsInfo = exchangeInfoResponse.data.symbols.reduce((acc, symbol) => {
+            if (!acc[symbol.quoteAsset]) {
+                acc[symbol.quoteAsset] = [];
+            }
+
+            acc[symbol.quoteAsset].push(symbol);
+            return acc;
+        }, {});
+        console.log(fullSymbolsInfo)
+        this.fullSymbolsInfo = fullSymbolsInfo;
+
+        // console.log(exchangeInfoResponse.data);
         const allSymbols = exchangeInfoResponse.data.symbols
             .filter(symbolItem => SYMBOL_FILTER.includes(symbolItem.quoteAsset) && symbolItem.permissions.includes('SPOT'))
             .reduce((acc, symbolItem) => {
-                console.log(symbolItem)
+                // console.log(symbolItem)
                 acc[symbolItem.symbol] = {
                     name: symbolItem.symbol,
                     marketcap: 0,
@@ -265,7 +297,7 @@ export default {
         this.initCharts(symbols);
         this.fillCharts(symbols);
 
-        this.connection = new WebSocket("wss://stream.binance.com:9443/ws");
+        this.connection = new WebSocket("wss://data-stream.binance.com:9443/ws");
 
         this.connection.onmessage = (event) => {
             const socketData = JSON.parse(event.data);
@@ -274,20 +306,26 @@ export default {
             switch (socketData.e) {
                 case 'kline':
                //      console.log(socketData.s, this.charts)
-                    const lastCandle = this.charts[socketData.s].chart.data.pop();
+                    let lastCandle = this.charts[socketData.s].chart.data.pop();
+
                     
-                    if (lastCandle && lastCandle[0] !== socketData.k.t) {
+                    if (lastCandle[0] !== socketData.k.t) {
+                        this.charts[socketData.s].chart.data.push(lastCandle);
+                        this.charts[socketData.s].chart.data.push([
+                            +socketData.k.t,
+                            +socketData.k.o,
+                            +socketData.k.h,
+                            +socketData.k.l,
+                            +socketData.k.c,
+                            +socketData.k.v
+                        ]);
+                    } else {
+                        lastCandle[2] = +socketData.k.h;
+                        lastCandle[3] = +socketData.k.l;
+                        lastCandle[5] = +socketData.k.v;
                         this.charts[socketData.s].chart.data.push(lastCandle);
                     }
 
-                    this.charts[socketData.s].chart.data.push([
-                        +socketData.k.t,
-                        +socketData.k.o,
-                        +socketData.k.h,
-                        +socketData.k.l,
-                        +socketData.k.c,
-                        +socketData.k.v
-                    ]);
                     break;
 /*                 case '24hrTicker':
                     if (!this.sortParams.field !== 'price24hChange') {
@@ -298,7 +336,19 @@ export default {
                     this.allSymbols[socketData.s][this.sortParams.field] = socketData.P;
                     this.allSymbols = this.allSymbols.sort(this.sort.bind(null, { direction: this.sortParams.direction }));
                     break;
- */                
+ */             
+                case 'aggTrade': 
+                    lastCandle = this.charts[socketData.s].chart.data.pop();
+
+                    if (lastCandle && (socketData.E - this.lastAggTradeE) >= 200) {
+                        this.lastAggTradeE = socketData.E;
+                        lastCandle[4] = +socketData.p;
+                    }
+
+                    this.charts[socketData.s].chart.data.push(lastCandle);
+
+                    break;
+
                 default:
                     console.log(`Unknown data type: ${socketData.e}`);
             }
@@ -307,7 +357,7 @@ export default {
         this.connection.onopen = () => {
             console.log("Successfully connected to the Binance websocket server")
 
-            this.sendMessage(SUBSCRIBE_METHOD, symbols.map(symbol => `${symbol.toLowerCase()}@kline_${this.timeframe}`));
+            this.sendMessage(SUBSCRIBE_METHOD, [...symbols.map(symbol => `${symbol.toLowerCase()}@kline_${this.timeframe}`), ...symbols.map(symbol => `${symbol.toLowerCase()}@aggTrade`)]);
         }
     },
     data() {
@@ -329,7 +379,10 @@ export default {
                 field: 'name',
                 direction: true
             },
-            sortableFields: ['name', 'price24Change', 'marketcap']
+            sortableFields: ['name', 'price24Change', 'marketcap'],
+            fullSymbolsInfo: {},
+            quoteAsset: 'USDT',
+            lastAggTradeE: 0,
         }
     }
 }
