@@ -157,7 +157,7 @@ export default {
         selectQuoteHandler: async function(quoteAsset) {
             const exchangeInfoResponse = await axios.get('https://data.binance.com/api/v3/exchangeInfo');
             const allSymbols = exchangeInfoResponse.data.symbols
-            .filter(symbolItem => [quoteAsset].includes(symbolItem.quoteAsset) && symbolItem.permissions.includes('SPOT'))
+            .filter(symbolItem => [quoteAsset].includes(symbolItem.quoteAsset) && symbolItem.permissions.includes('SPOT') && symbolItem.status === 'TRADING')
             .reduce((acc, symbolItem) => {
                 // console.log(symbolItem)
                 acc[symbolItem.symbol] = {
@@ -271,7 +271,7 @@ export default {
 
         // console.log(exchangeInfoResponse.data);
         const allSymbols = exchangeInfoResponse.data.symbols
-            .filter(symbolItem => SYMBOL_FILTER.includes(symbolItem.quoteAsset) && symbolItem.permissions.includes('SPOT'))
+            .filter(symbolItem => SYMBOL_FILTER.includes(symbolItem.quoteAsset) && symbolItem.permissions.includes('SPOT') && symbolItem.status === 'TRADING')
             .reduce((acc, symbolItem) => {
                 // console.log(symbolItem)
                 acc[symbolItem.symbol] = {
