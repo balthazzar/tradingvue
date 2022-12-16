@@ -28,13 +28,13 @@
             :options="['1m', '5m', '15m', '1h', '4h', '1d']"
             :value="timeframe">
         </v-select>
-
-        <v-select
-            @input="selectQuoteHandler"
-            :options="Object.keys(this.fullSymbolsInfo)"
-            :value="quoteAsset">
-        </v-select>
     </div>
+
+    <v-super-select
+        @input="selectQuoteHandler"
+        :items="fullSymbolsInfo"
+        :value="quoteAsset">
+    </v-super-select>
 
     <grid-layout v-if="charts"
                 :layout.sync="layout"
@@ -49,7 +49,7 @@
                 :w="item.w"
                 :key="item.i">
             <trading-vue
-                :id="item.i"
+                :id="item.i.toString()"
                 :data="charts[item.symbol]"
                 :title-txt="`${item.symbol.replace(quoteAsset, '')} ${timeframe} ${allSymbols[item.symbol] ? allSymbols[item.symbol].price24Change : 0}% ${allSymbols[item.symbol] ? allSymbols[item.symbol].marketcap : 0}$`"
                 :width="470"
@@ -230,17 +230,6 @@ export default {
                         });
 
                         break;
-                    case 'marketcap':
-                        // const apiAnswer = await axios.get(`https://api1.binance.com/api/v3/ticker/24hr?symbols=${JSON.stringify(Object.keys(this.allSymbols))}`);
-                        const apiAnswer = await axios.get('https://www.binance.com/exchange-api/v2/public/asset-service/product/get-products');
-                        
-                        apiAnswer.data.data.forEach(item => {
-                            if (this.allSymbols[item.s]) {
-                                this.allSymbols[item.s]['marketcap'] = item.cs * item.c;
-                            }
-                        });
-
-                        break;
                 }
                 
                 this.applyFilters();
@@ -339,8 +328,7 @@ export default {
 
         Promise.all([
             axios.get(`https://data.binance.com/api/v3/ticker/24hr?symbols=${JSON.stringify(Object.keys(this.allSymbols))}`),
-            axios.get('https://www.binance.com/exchange-api/v2/public/asset-service/product/get-products'),
-            axios.get('http://63.250.60.80:8083/symbols')
+            axios.get('http://63.250.60.80:8083/categories')
         ]).then(responses => {
             responses[0].data.forEach(item => {
                 if (this.allSymbols[item.symbol]) {
@@ -348,13 +336,18 @@ export default {
                 }
             });
 
-            responses[1].data.data.forEach(item => {
-                if (this.allSymbols[item.s]) {
-                    this.allSymbols[item.s]['marketcap'] = item.cs * item.c;
-                }
-            });
+            const sortedCategories = ['coins', 'ALTS', 'FIAT', 'Zones'];
+            const fullSymbolsInfo = sortedCategories.map(category => (
+                    {
+                        groupName: category,
+                        items: responses[1].data[category].map(item => ({
+                            text: item,
+                            value: item
+                        }))
+                    }
+            ));
 
-            const fullSymbolsInfo = responses[2].data.reduce((acc, symbol) => {
+/*             const fullSymbolsInfo = responses[2].data.reduce((acc, symbol) => {
                 if (!acc[symbol.quoteAsset]) {
                     acc[symbol.quoteAsset] = [];
                 }
@@ -363,7 +356,8 @@ export default {
                 return acc;
             }, {});
 
-            this.fullSymbolsInfo = fullSymbolsInfo;
+ */            this.fullSymbolsInfo = fullSymbolsInfo;
+            console.log(this.fullSymbolsInfo)
         });
     },
     data() {
@@ -386,7 +380,7 @@ export default {
                 direction: true
             },
             sortableFields: ['name', 'price24Change', 'marketcap'],
-            fullSymbolsInfo: {},
+            fullSymbolsInfo: [{ value: 'USDT', text: 'USDT' }],
             quoteAsset: 'USDT',
             lastAggTradeE: 0,
         }
