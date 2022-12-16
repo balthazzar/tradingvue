@@ -50,7 +50,7 @@
                 :key="item.i">
             <trading-vue
                 :data="charts[item.symbol]"
-                :title-txt="`${item.symbol.replace('USDT', '')} ${timeframe} ${allSymbols[item.symbol] ? allSymbols[item.symbol].price24Change : 0}% ${allSymbols[item.symbol] ? allSymbols[item.symbol].marketcap : 0}$`"
+                :title-txt="`${item.symbol} ${timeframe} ${allSymbols[item.symbol] ? allSymbols[item.symbol].price24Change : 0}% ${allSymbols[item.symbol] ? allSymbols[item.symbol].marketcap : 0}$`"
                 :width="470"
                 :height="240"
                 :color-back="colors.colorBack"
@@ -161,28 +161,21 @@ export default {
             this.sendMessage(SUBSCRIBE_METHOD, [...Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@kline_${timeframe}`), ...Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@aggTrade`)]);
         },
         selectQuoteHandler: async function(quoteAsset) {
-            const exchangeInfoResponse = await axios.get('https://data.binance.com/api/v3/exchangeInfo');
-            const allSymbols = exchangeInfoResponse.data.symbols
-            .filter(symbolItem => [quoteAsset].includes(symbolItem.quoteAsset) && symbolItem.permissions.includes('SPOT') && symbolItem.status === 'TRADING')
-            .reduce((acc, symbolItem) => {
-                // console.log(symbolItem)
-                acc[symbolItem.symbol] = {
-                    name: symbolItem.symbol,
-                    marketcap: 0,
-                    price24Change: 0
-                };
-
-                return acc;
-            }, {});
-
             this.quoteAsset = quoteAsset;
 
+            const symbolsResponse = await axios.get(
+                `http://63.250.60.80:8083/symbols-filtered?quoteAsset=${this.quoteAsset}`
+            );
+            const allSymbols = symbolsResponse.data;
+
+            this.allSymbols = allSymbols;
+            this.pageCount = Math.ceil(Object.keys(allSymbols).length / this.itemOnPage);
+            
             this.sendMessage(UNSUBSCRIBE_METHOD, [...Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@kline_${this.timeframe}`), ...Object.keys(this.charts).map(symbol => `${symbol.toLowerCase()}@aggTrade`)]);
 
-            console.log(this.fullSymbolsInfo[quoteAsset])
-            const symbols = this.fullSymbolsInfo[quoteAsset].map(symbol => `${symbol.baseAsset}${quoteAsset}`).slice((this.page - 1) * this.itemOnPage, (this.page - 1) * this.itemOnPage + this.itemOnPage);
-            console.log(symbols)
-            this.allSymbols = allSymbols;
+            const sortedSymbols = Object.values(this.allSymbols).sort(this.sort.bind(null, this.sortParams)).map(symbol => symbol.name);
+            const symbols = sortedSymbols.slice((this.page - 1) * this.itemOnPage, (this.page - 1) * this.itemOnPage + this.itemOnPage);
+    
             this.initLayout(symbols);
             this.initCharts(symbols);
             this.fillCharts(symbols);
@@ -265,6 +258,7 @@ export default {
         const symbolsResponse = await axios.get(
             `http://63.250.60.80:8083/symbols-filtered?quoteAsset=${this.quoteAsset}`
         );
+
         const allSymbols = symbolsResponse.data;
 
         this.allSymbols = allSymbols;
@@ -273,10 +267,7 @@ export default {
         const sortedSymbols = Object.values(this.allSymbols).sort(this.sort.bind(null, this.sortParams)).map(symbol => symbol.name);
         const symbols = sortedSymbols.slice((this.page - 1) * this.itemOnPage, (this.page - 1) * this.itemOnPage + this.itemOnPage);
         
-        // const symbols = this.paginateSymbols();
-
         this.initLayout(symbols);
-        // this.layout = this.layout.sort(this.sort.bind(null, { field: 'symbol', direction: this.sortParams.isAsc }));
         this.initCharts(symbols);
         this.fillCharts(symbols);
 
@@ -367,6 +358,7 @@ export default {
                     acc[symbol.quoteAsset] = [];
                 }
 
+                if (symbol.quoteAsset === 'PAX') console.log(symbol)
                 acc[symbol.quoteAsset].push(symbol);
                 return acc;
             }, {});

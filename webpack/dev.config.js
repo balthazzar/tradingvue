@@ -30,6 +30,6 @@ module.exports = {
             template: './src/index.html'
         }),
         // minify with dead-code elimination
-        new UglifyJsPlugin()
+        // new UglifyJsPlugin()
     ],
 }
