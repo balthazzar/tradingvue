@@ -116,7 +116,7 @@ export default {
         },
         fillCharts: async function(symbols) {
             if (this.quoteAsset === 'USDT' && this.sortParams.field === 'name') {
-                const klinesData = await axios.get(`http://localhost:8083/klines?page=${this.page}`);
+                const klinesData = await axios.get(`http://63.250.60.80:8083/klines?page=${this.page}`);
 
                 symbols.forEach((symbol, i) => {
                     this.charts[symbol].chart.data = klinesData.data[symbol];
@@ -263,7 +263,7 @@ export default {
     },
     mounted: async function() {
         const symbolsResponse = await axios.get(
-            `http://localhost:8083/symbols-filtered?quoteAsset=${this.quoteAsset}`
+            `http://63.250.60.80:8083/symbols-filtered?quoteAsset=${this.quoteAsset}`
         );
         const allSymbols = symbolsResponse.data;
 
@@ -348,7 +348,7 @@ export default {
         Promise.all([
             axios.get(`https://data.binance.com/api/v3/ticker/24hr?symbols=${JSON.stringify(Object.keys(this.allSymbols))}`),
             axios.get('https://www.binance.com/exchange-api/v2/public/asset-service/product/get-products'),
-            axios.get('http://localhost:8083/symbols')
+            axios.get('http://63.250.60.80:8083/symbols')
         ]).then(responses => {
             responses[0].data.forEach(item => {
                 if (this.allSymbols[item.symbol]) {
