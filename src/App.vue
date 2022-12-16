@@ -116,7 +116,7 @@ export default {
         },
         fillCharts: async function(symbols) {
             if (this.quoteAsset === 'USDT' && this.sortParams.field === 'name') {
-                const klinesData = await axios.get(`http://63.250.60.80:8083/klines?page=${this.page}`);
+                const klinesData = await axios.get(`http://63.250.60.80:8083/klines?page=${this.page}${this.sortParams.direction ? '' : '&desc=true'}`);
 
                 symbols.forEach((symbol, i) => {
                     this.charts[symbol].chart.data = klinesData.data[symbol];
