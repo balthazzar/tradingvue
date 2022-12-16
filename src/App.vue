@@ -49,6 +49,7 @@
                 :w="item.w"
                 :key="item.i">
             <trading-vue
+                :id="item.i"
                 :data="charts[item.symbol]"
                 :title-txt="`${item.symbol} ${timeframe} ${allSymbols[item.symbol] ? allSymbols[item.symbol].price24Change : 0}% ${allSymbols[item.symbol] ? allSymbols[item.symbol].marketcap : 0}$`"
                 :width="470"
@@ -358,7 +359,6 @@ export default {
                     acc[symbol.quoteAsset] = [];
                 }
 
-                if (symbol.quoteAsset === 'PAX') console.log(symbol)
                 acc[symbol.quoteAsset].push(symbol);
                 return acc;
             }, {});
