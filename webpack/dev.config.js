@@ -1,8 +1,9 @@
 const VueLoaderPlugin = require('vue-loader/lib/plugin')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
+const UglifyJsPlugin = require('uglifyjs-webpack-plugin');
 
 module.exports = {
-    entry: ['./src/main.js', 'webpack-dev-server/client?http://0.0.0.0:8084'],
+    entry: './src/main.js',
     module: {
         rules: [{
                 test: /\.vue$/,
@@ -27,6 +28,8 @@ module.exports = {
         new VueLoaderPlugin(),
         new HtmlWebpackPlugin({
             template: './src/index.html'
-        })
+        }),
+        // minify with dead-code elimination
+        new UglifyJsPlugin()
     ],
 }

@@ -107,11 +107,7 @@ export default {
                     chart: {
                         type: 'Candles',
                         data: [],
-                        tf: this.timeframe,
-                        settings: {
-                            upper: 70,
-                            lower: 30
-                        }
+                        tf: this.timeframe
                     }
                 };
 
@@ -119,6 +115,16 @@ export default {
             }, {});
         },
         fillCharts: async function(symbols) {
+            if (this.quoteAsset === 'USDT' && this.sortParams.field === 'name') {
+                const klinesData = await axios.get(`http://localhost:8083/klines?page=${this.page}`);
+
+                symbols.forEach((symbol, i) => {
+                    this.charts[symbol].chart.data = klinesData.data[symbol];
+                });
+
+                return;
+            }
+
             const klineRequests = symbols.map(symbol => axios.get(`https://data.binance.com/api/v3/uiKlines?symbol=${symbol}&interval=${this.timeframe}`));
             const klineResponses = await Promise.all(klineRequests);
             
@@ -256,53 +262,14 @@ export default {
         }
     },
     mounted: async function() {
-        const exchangeInfoResponse = await axios.get('https://data.binance.com/api/v3/exchangeInfo');
-        
-        const fullSymbolsInfo = exchangeInfoResponse.data.symbols.reduce((acc, symbol) => {
-            if (!acc[symbol.quoteAsset]) {
-                acc[symbol.quoteAsset] = [];
-            }
+        const symbolsResponse = await axios.get(
+            `http://localhost:8083/symbols-filtered?quoteAsset=${this.quoteAsset}`
+        );
+        const allSymbols = symbolsResponse.data;
 
-            acc[symbol.quoteAsset].push(symbol);
-            return acc;
-        }, {});
-        console.log(fullSymbolsInfo)
-        this.fullSymbolsInfo = fullSymbolsInfo;
-
-        // console.log(exchangeInfoResponse.data);
-        const allSymbols = exchangeInfoResponse.data.symbols
-            .filter(symbolItem => SYMBOL_FILTER.includes(symbolItem.quoteAsset) && symbolItem.permissions.includes('SPOT') && symbolItem.status === 'TRADING')
-            .reduce((acc, symbolItem) => {
-                // console.log(symbolItem)
-                acc[symbolItem.symbol] = {
-                    name: symbolItem.symbol,
-                    marketcap: 0,
-                    price24Change: 0
-                };
-
-                return acc;
-            }, {});
-        
         this.allSymbols = allSymbols;
         this.pageCount = Math.ceil(Object.keys(allSymbols).length / this.itemOnPage);
 
-        Promise.all([
-            axios.get(`https://api1.binance.com/api/v3/ticker/24hr?symbols=${JSON.stringify(Object.keys(this.allSymbols))}`),
-            axios.get('https://www.binance.com/exchange-api/v2/public/asset-service/product/get-products')
-        ]).then(responses => {
-            responses[0].data.forEach(item => {
-                if (this.allSymbols[item.symbol]) {
-                    this.allSymbols[item.symbol]['price24Change'] = +item.priceChangePercent;
-                }
-            });
-
-            responses[1].data.data.forEach(item => {
-                if (this.allSymbols[item.s]) {
-                    this.allSymbols[item.s]['marketcap'] = item.cs * item.c;
-                }
-            });
-        });
-        
         const sortedSymbols = Object.values(this.allSymbols).sort(this.sort.bind(null, this.sortParams)).map(symbol => symbol.name);
         const symbols = sortedSymbols.slice((this.page - 1) * this.itemOnPage, (this.page - 1) * this.itemOnPage + this.itemOnPage);
         
@@ -370,13 +337,42 @@ export default {
                 default:
                     console.log(`Unknown data type: ${socketData.e}`);
             }
-        }
+        };
 
         this.connection.onopen = () => {
             console.log("Successfully connected to the Binance websocket server")
 
             this.sendMessage(SUBSCRIBE_METHOD, [...symbols.map(symbol => `${symbol.toLowerCase()}@kline_${this.timeframe}`), ...symbols.map(symbol => `${symbol.toLowerCase()}@aggTrade`)]);
-        }
+        };
+
+        Promise.all([
+            axios.get(`https://data.binance.com/api/v3/ticker/24hr?symbols=${JSON.stringify(Object.keys(this.allSymbols))}`),
+            axios.get('https://www.binance.com/exchange-api/v2/public/asset-service/product/get-products'),
+            axios.get('http://localhost:8083/symbols')
+        ]).then(responses => {
+            responses[0].data.forEach(item => {
+                if (this.allSymbols[item.symbol]) {
+                    this.allSymbols[item.symbol]['price24Change'] = +item.priceChangePercent;
+                }
+            });
+
+            responses[1].data.data.forEach(item => {
+                if (this.allSymbols[item.s]) {
+                    this.allSymbols[item.s]['marketcap'] = item.cs * item.c;
+                }
+            });
+
+            const fullSymbolsInfo = responses[2].data.reduce((acc, symbol) => {
+                if (!acc[symbol.quoteAsset]) {
+                    acc[symbol.quoteAsset] = [];
+                }
+
+                acc[symbol.quoteAsset].push(symbol);
+                return acc;
+            }, {});
+
+            this.fullSymbolsInfo = fullSymbolsInfo;
+        });
     },
     data() {
         return {
