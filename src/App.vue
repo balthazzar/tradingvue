@@ -51,7 +51,7 @@
             <trading-vue
                 :id="item.i.toString()"
                 :data="charts[item.symbol]"
-                :title-txt="`${item.symbol.replace(quoteAsset, '')} ${timeframe} ${allSymbols[item.symbol] ? allSymbols[item.symbol].price24Change : 0}% ${allSymbols[item.symbol] ? allSymbols[item.symbol].marketcap : 0}$`"
+                :title-txt="`${item.symbol.replace(quoteAsset, '')} ${timeframe} ${allSymbols[item.symbol] && sortParams.field.includes('price') && allSymbols[item.symbol][sortParams.field] ? allSymbols[item.symbol][sortParams.field] : 0}% ${allSymbols[item.symbol] ? allSymbols[item.symbol].marketcap : 0}$`"
                 :width="470"
                 :height="240"
                 :color-back="colors.colorBack"
@@ -221,12 +221,72 @@ export default {
             clearInterval(this.interval);
 
             const applySort = async () => {
+                const changeRequests = [];
+                let changeResponse;
+                let changeResponses;
+
                 switch (this.sortParams.field) {
-                    case 'price24Change':
-                        const changeResponse = await axios.get(`https://data.binance.com/api/v3/ticker/24hr?symbols=${JSON.stringify(Object.keys(this.allSymbols))}`);
+                    case 'price24HChange':
+                        changeResponse = await axios.get(`https://data.binance.com/api/v3/ticker/24hr?symbols=${JSON.stringify(Object.keys(this.allSymbols))}`);
                         
                         changeResponse.data.forEach(item => {
-                            this.allSymbols[item.symbol]['price24Change'] = +item.priceChangePercent;
+                            this.allSymbols[item.symbol]['price24HChange'] = +item.priceChangePercent;
+                        });
+
+                        break;
+                    case 'price5mChange':
+                        for (let i = 0; i < Object.keys(this.allSymbols).length; i += 100) {
+                            changeRequests.push(axios.get(`https://data.binance.com/api/v3/ticker?windowSize=5m&symbols=${JSON.stringify(Object.keys(this.allSymbols).slice(i, i + 100))}`));
+                        }
+
+                        changeResponses = await Promise.all(changeRequests);
+                        
+                        changeResponses.forEach(changeResponse => {
+                            changeResponse.data.forEach(item => {
+                                this.allSymbols[item.symbol]['price5mChange'] = +item.priceChangePercent;
+                            });
+                        });
+
+                        break;
+                    case 'price1HChange':
+                        for (let i = 0; i < Object.keys(this.allSymbols).length; i += 100) {
+                            changeRequests.push(axios.get(`https://data.binance.com/api/v3/ticker?windowSize=1h&symbols=${JSON.stringify(Object.keys(this.allSymbols).slice(i, i + 100))}`));
+                        }
+
+                        changeResponses = await Promise.all(changeRequests);
+                        
+                        changeResponses.forEach(changeResponse => {
+                            changeResponse.data.forEach(item => {
+                                this.allSymbols[item.symbol]['price1HChange'] = +item.priceChangePercent;
+                            });
+                        });
+
+                        break;
+                    case 'price4HChange':
+                        for (let i = 0; i < Object.keys(this.allSymbols).length; i += 100) {
+                            changeRequests.push(axios.get(`https://data.binance.com/api/v3/ticker?windowSize=4h&symbols=${JSON.stringify(Object.keys(this.allSymbols).slice(i, i + 100))}`));
+                        }
+
+                        changeResponses = await Promise.all(changeRequests);
+                        
+                        changeResponses.forEach(changeResponse => {
+                            changeResponse.data.forEach(item => {
+                                this.allSymbols[item.symbol]['price4HChange'] = +item.priceChangePercent;
+                            });
+                        });
+
+                        break;
+                    case 'price7DChange':
+                        for (let i = 0; i < Object.keys(this.allSymbols).length; i += 100) {
+                            changeRequests.push(axios.get(`https://data.binance.com/api/v3/ticker?windowSize=7d&symbols=${JSON.stringify(Object.keys(this.allSymbols).slice(i, i + 100))}`));
+                        }
+
+                        changeResponses = await Promise.all(changeRequests);
+                        
+                        changeResponses.forEach(changeResponse => {
+                            changeResponse.data.forEach(item => {
+                                this.allSymbols[item.symbol]['price7DChange'] = +item.priceChangePercent;
+                            });
                         });
 
                         break;
@@ -332,7 +392,7 @@ export default {
         ]).then(responses => {
             responses[0].data.forEach(item => {
                 if (this.allSymbols[item.symbol]) {
-                    this.allSymbols[item.symbol]['price24Change'] = +item.priceChangePercent;
+                    this.allSymbols[item.symbol]['price24HChange'] = +item.priceChangePercent;
                 }
             });
 
@@ -379,7 +439,7 @@ export default {
                 field: 'name',
                 direction: true
             },
-            sortableFields: ['name', 'price24Change', 'marketcap'],
+            sortableFields: ['name', 'marketcap', 'price5mChange', 'price1HChange', 'price4HChange', 'price24HChange', 'price7DChange'],
             fullSymbolsInfo: [{ value: 'USDT', text: 'USDT' }],
             quoteAsset: 'USDT',
             lastAggTradeE: 0,
