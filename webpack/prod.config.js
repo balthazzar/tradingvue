@@ -2,9 +2,11 @@ const VueLoaderPlugin = require('vue-loader/lib/plugin')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const UglifyJsPlugin = require('uglifyjs-webpack-plugin');
 const webpack = require('webpack');
+const path = require('path');
 
 module.exports = {
     entry: './src/main.js',
+    mode: 'production',
     module: {
         rules: [{
                 test: /\.vue$/,
@@ -37,6 +39,10 @@ module.exports = {
         new UglifyJsPlugin()
     ],
     output: {
-        filename: '[name].bundle.js'
-    }
+        filename: '[name].bundle.js',
+        path: path.resolve(__dirname, 'dist')
+    },
+    optimization: {
+    runtimeChunk: true,
+    },
 }
