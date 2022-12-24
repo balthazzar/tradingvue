@@ -123,7 +123,7 @@ export default {
                 return;
             }
 
-            const klineRequests = symbols.map(symbol => axios.get(`https://data.binance.com/api/v3/uiKlines?symbol=${symbol}&interval=${this.timeframe}&limit=1000&startTime=0`));
+            const klineRequests = symbols.map(symbol => axios.get(`https://data.binance.com/api/v3/uiKlines?symbol=${symbol}&interval=${this.timeframe}&limit=1000`));
             const klineResponses = await Promise.all(klineRequests);
             
             symbols.forEach((symbol, i) => {
