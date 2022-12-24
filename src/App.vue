@@ -39,10 +39,10 @@
     <grid-layout v-if="charts"
                 :layout.sync="layout"
                 :is-draggable="false"
-                :col-num="4"
-                :row-height="240">
+                :col-num="2"
+                :row-height="height">
         <grid-item v-for="item in layout"
-                :x="item.x"
+                :x="item.x" 
                 :y="item.y"
                 :i="item.i"
                 :h="item.h"
@@ -52,11 +52,8 @@
                 :id="item.i.toString()"
                 :data="charts[item.symbol]"
                 :title-txt="`${item.symbol.replace(quoteAsset, '')} ${timeframe} ${allSymbols[item.symbol] && sortParams.field.includes('price') && allSymbols[item.symbol][sortParams.field] ? allSymbols[item.symbol][sortParams.field] : 0}% ${allSymbols[item.symbol] ? allSymbols[item.symbol].marketcap : 0}$`"
-                :width="470"
-                :height="240"
-                :color-back="colors.colorBack"
-                :color-grid="colors.colorGrid"
-                :color-text="colors.colorText">
+                :width="width"
+                :height="height">
             </trading-vue>
         </grid-item>
     </grid-layout>
@@ -94,7 +91,7 @@ export default {
         },
         initLayout(symbols) {
             this.layout = symbols.map((symbol, i) => ({
-                x: i % 2 ? 2 : 1,
+                x: i % 2 ? 1 : 0,
                 y: i % 2 ? i - 1 : i,
                 w: 1,
                 h: 1,
@@ -126,7 +123,7 @@ export default {
                 return;
             }
 
-            const klineRequests = symbols.map(symbol => axios.get(`https://data.binance.com/api/v3/uiKlines?symbol=${symbol}&interval=${this.timeframe}`));
+            const klineRequests = symbols.map(symbol => axios.get(`https://data.binance.com/api/v3/uiKlines?symbol=${symbol}&interval=${this.timeframe}&limit=1000&startTime=0`));
             const klineResponses = await Promise.all(klineRequests);
             
             symbols.forEach((symbol, i) => {
@@ -211,6 +208,10 @@ export default {
 
                 this.sendMessage(SUBSCRIBE_METHOD, [...symbols.map(symbol => `${symbol.toLowerCase()}@kline_${this.timeframe}`), ...symbols.map(symbol => `${symbol.toLowerCase()}@aggTrade`)]);
             }
+        },
+        resizeHandler() {
+            this.width = window.innerWidth * .5;
+            this.height = window.innerHeight * .22;
         }
     },
     watch: {
@@ -304,7 +305,14 @@ export default {
             this.applyFilters();
         }
     },
+    created() {
+        window.addEventListener("resize", this.resizeHandler);
+    },
+    destroyed() {
+        window.removeEventListener("resize", this.resizeHandler);
+    },
     mounted: async function() {
+        console.log(window.innerWidth, window.innerHeight);
         const symbolsResponse = await axios.get(
             `http://63.250.60.80:8083/symbols-filtered?quoteAsset=${this.quoteAsset}`
         );
@@ -364,7 +372,7 @@ export default {
                     break;
  */             
                 case 'aggTrade': 
-                    lastCandle = this.charts[socketData.s].chart.data.pop();
+                    lastCandle = this.charts[socketData.s]?.chart?.data?.pop();
 
                     if (lastCandle && (socketData.E - this.lastAggTradeE) >= 200) {
                         this.lastAggTradeE = socketData.E;
@@ -443,6 +451,8 @@ export default {
             fullSymbolsInfo: [{ value: 'USDT', text: 'USDT' }],
             quoteAsset: 'USDT',
             lastAggTradeE: 0,
+            width: window.innerWidth * .48,
+            height: window.innerHeight * .22,
         }
     }
 }
@@ -460,13 +470,12 @@ h1,
   color: #2c3e5099;
 }
 
-h1 {
-  font-size: 26px;
-  font-weight: 600;
-}
-
 #app {
   max-width: 30em;
   margin: 1em auto;
+}
+
+.t-vue-title {
+    font-size: calc(100vw * 0.017 + 1px) !important;
 }
 </style>
