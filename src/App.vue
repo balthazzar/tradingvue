@@ -210,7 +210,7 @@ export default {
             }
         },
         resizeHandler() {
-            this.width = window.innerWidth * .5;
+            this.width = window.innerWidth * .48;
             this.height = window.innerHeight * .22;
         }
     },
