@@ -1,6 +1,7 @@
 const VueLoaderPlugin = require('vue-loader/lib/plugin')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const UglifyJsPlugin = require('uglifyjs-webpack-plugin');
+const CompressionPlugin = require('compression-webpack-plugin');
 const webpack = require('webpack');
 const path = require('path');
 
@@ -36,7 +37,8 @@ module.exports = {
             'process.env.NODE_ENV': JSON.stringify('production')
         }),
         // minify with dead-code elimination
-        new UglifyJsPlugin()
+        new UglifyJsPlugin(),
+        new CompressionPlugin()
     ],
     output: {
         filename: '[name].bundle.js',
